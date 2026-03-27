@@ -16,7 +16,10 @@ from scratch using modern Java and Spring Boot.
 | Spring Data JPA | Database access and ORM |
 | Spring Security | Security configuration |
 | H2 In-Memory Database | Development database |
+| PostgreSQL | Production database |
+| Supabase | Hosted Postgres provider |
 | Hibernate | JPA implementation and schema generation |
+| Flyway | Database migration management |
 | Lombok | Boilerplate reduction |
 | Jakarta Bean Validation | Request validation |
 | SpringDoc / Swagger UI | Auto-generated API documentation |
@@ -107,6 +110,16 @@ creating a booking: the doctor must work on the requested day, the requested
 time must fall within the doctor's availability window, and the doctor must
 not already have an appointment at that exact datetime.
 
+**Environment Profiles** — the application uses Spring profiles to separate
+environment concerns. The `dev` profile uses H2 in-memory database with
+Hibernate managing the schema. The `prod` profile uses PostgreSQL on Supabase
+with Flyway managing versioned migrations.
+
+**Flyway Migrations** — production schema changes are managed through
+versioned SQL migration scripts located in `src/main/resources/db/migration`.
+Flyway tracks which migrations have run and never applies the same migration
+twice.
+
 ---
 
 ## Running the Application
@@ -120,7 +133,37 @@ not already have an appointment at that exact datetime.
 ./mvnw spring-boot:run
 ```
 
-### Access points
+---
+
+## Environment Profiles
+
+### Development (H2 in-memory database)
+
+Set the active profile to `dev` in your IntelliJ run configuration:
+```
+Active profiles: dev
+```
+
+No additional setup required. H2 schema is created automatically on startup
+and seed data is loaded from `data.sql`.
+
+### Production (Supabase Postgres)
+
+Set the active profile to `prod` and provide the following environment
+variables in your IntelliJ run configuration:
+
+| Variable | Description |
+|---|---|
+| `DB_URL` | JDBC connection URL for your Supabase database |
+| `DB_USERNAME` | Database username |
+| `DB_PASSWORD` | Database password |
+
+See `.env.example` for the required variable names. Never commit real
+credentials to Git.
+
+---
+
+## Access Points (dev profile)
 
 | Resource | URL |
 |---|---|
@@ -134,6 +177,17 @@ not already have an appointment at that exact datetime.
 | JDBC URL | `jdbc:h2:mem:clinicdb` |
 | Username | `sa` |
 | Password | *(leave blank)* |
+
+---
+
+## Database Migrations
+
+Flyway migration scripts live in `src/main/resources/db/migration`:
+
+| Migration | Description |
+|---|---|
+| `V1__create_schema.sql` | Creates all four tables with foreign keys |
+| `V2__seed_data.sql` | Seeds three doctors, four patients, availability slots, and appointments |
 
 ---
 
@@ -167,8 +221,12 @@ not already have an appointment at that exact datetime.
 
 ## Seed Data
 
-The application loads seed data automatically on startup via `data.sql`:
+The application loads seed data automatically on startup:
 
+- **dev profile** — via `data.sql` loaded by Spring after Hibernate creates the schema
+- **prod profile** — via Flyway migration `V2__seed_data.sql`
+
+Seed data includes:
 - 3 doctors with different availability schedules
 - 4 patients, one without a preferred doctor
 - 10 availability slots across the three doctors
@@ -178,10 +236,10 @@ The application loads seed data automatically on startup via `data.sql`:
 
 ## Development Notes
 
-This project uses `spring.jpa.hibernate.ddl-auto=create-drop` which means
-the database schema is created fresh on every startup and dropped on shutdown.
-All seed data is reloaded on each run. This is intentional for development
-purposes.
+The `dev` profile uses `spring.jpa.hibernate.ddl-auto=create-drop` which
+means the schema is created fresh on every startup and dropped on shutdown.
+This is intentional for local development.
 
-For production deployment this would be replaced with Flyway migrations and
-`ddl-auto=validate`.
+The `prod` profile uses `spring.jpa.hibernate.ddl-auto=none` — Hibernate
+makes no schema changes. All schema management is handled exclusively by
+Flyway migration scripts.
